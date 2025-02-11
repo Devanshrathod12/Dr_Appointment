@@ -1,7 +1,8 @@
 import doctorModel from "../Models/DoctorsModel.js";
-import bcrypt from "bcrypt";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import appointmentModel from "../Models/AppointmentModel.js";
+
 const ChangeAvailablity = async (req, res) => {
   try {
     const { docId } = req.body;
@@ -10,7 +11,7 @@ const ChangeAvailablity = async (req, res) => {
     await doctorModel.findByIdAndUpdate(docId, {
       available: !docData.available,
     });
-    res.json({ success: true, message: "availablity Changed" });
+    res.json({ success: true, message: "Availability Changed" });
   } catch (error) {
     console.log(error);
     res.status(500).json({ success: false, message: error.message });
@@ -27,28 +28,27 @@ const DoctorList = async (req, res) => {
   }
 };
 
-// api for doctor login
+const hashPassword = (password) => {
+  return crypto.createHash("sha256").update(password).digest("hex");
+};
 
 const LoginDoctor = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    // Search for the doctor using the email
     const doctor = await doctorModel.findOne({ email });
 
     if (!doctor) {
-      console.log("Doctor not found with email:", email); // Logging invalid email
+      console.log("Doctor not found with email:", email);
       return res.json({ success: false, message: "Invalid credentials" });
     }
 
-    // Compare password
-    const isMatch = await bcrypt.compare(password, doctor.password);
+    const hashedPassword = hashPassword(password);
 
-    if (isMatch) {
+    if (hashedPassword === doctor.password) {
       const token = jwt.sign({ id: doctor._id }, process.env.JWT_SECRET);
       res.json({ success: true, token });
     } else {
-      console.log("Password mismatch for email:", email); // Logging invalid password
+      console.log("Password mismatch for email:", email);
       res.json({ success: false, message: "Invalid credentials" });
     }
   } catch (error) {
@@ -57,7 +57,6 @@ const LoginDoctor = async (req, res) => {
   }
 };
 
-// api to get appointment for doctor pennal
 const appointmentDoctors = async (req, res) => {
   try {
     const { docId } = req.body;
@@ -69,36 +68,15 @@ const appointmentDoctors = async (req, res) => {
   }
 };
 
-// api to mark complited appointment for doctor penal
-// const AppointmentComplite = async (req,res) => {
-//     try {
-//         const {docId,appointmentsId} = req.body;
-//         const appointmentData = appointmentModel.findById(appointmentsId)
-
-//         if (appointmentData && appointmentData.docId === docId) {
-//             await appointmentModel.findByIdAndUpdate(appointmentsId, {isCompleted:true})
-//             return res.json({success:true,message:"Appointment Completed"})
-//         } else {
-//             return res.json({success:false,message:"Mark failed"})
-//         }
-
-//     } catch (error) {
-//         console.log(error);
-//         res.json({ success: false, message: error.message });
-//     }
-// }
 const AppointmentComplite = async (req, res) => {
   try {
     const { docId, appointmentsId } = req.body;
-    // Await the appointment data to ensure it's retrieved
-    const appointmentData = await appointmentModel.findById(appointmentsId); // Added await here
+    const appointmentData = await appointmentModel.findById(appointmentsId);
 
     if (
       appointmentData &&
       appointmentData.docId.toString() === docId.toString()
     ) {
-      // Ensuring both are compared correctly
-      // Mark appointment as completed
       await appointmentModel.findByIdAndUpdate(appointmentsId, {
         isCompleted: true,
       });
@@ -112,33 +90,25 @@ const AppointmentComplite = async (req, res) => {
   }
 };
 
-// api to  cencel appointment for doctor penal
 const CencelAppointment = async (req, res) => {
   try {
-    const { docId, appointmentsId } = req.body; // Replacing appointmentId with appointmentsId
-
-    // Log the input values to check if they're correct
+    const { docId, appointmentsId } = req.body;
     console.log("Received docId:", docId);
     console.log("Received appointmentsId:", appointmentsId);
 
-    // Await the appointment data to ensure it's properly fetched from the database
-    const appointmentdata = await appointmentModel.findById(appointmentsId); // Using appointmentsId here
+    const appointmentdata = await appointmentModel.findById(appointmentsId);
 
-    // Check if appointment exists
     if (!appointmentdata) {
       console.log("Appointment not found");
       return res.json({ success: false, message: "Appointment not found" });
     }
 
-    // Log appointment data to ensure it's being fetched correctly
     console.log("Found appointment data:", appointmentdata);
 
-    // Ensure the docId matches the one stored in the appointment
     if (appointmentdata.docId.toString() === docId.toString()) {
-      // Mark appointment as cancelled
       await appointmentModel.findByIdAndUpdate(appointmentsId, {
-        cencelled: true,
-      }); // Updated here
+        cancelled: true,
+      });
       return res.json({ success: true, message: "Appointment Cancelled" });
     } else {
       console.log("DocId mismatch");
@@ -153,30 +123,26 @@ const CencelAppointment = async (req, res) => {
   }
 };
 
-// api to get dashboard data for doctor pennal
 const doctorDashboard = async (req, res) => {
   try {
     const { docId } = req.body;
-
     const appointments = await appointmentModel.find({ docId });
-
-    let earnning = 0;
-
-    appointments.map((item) => {
+    let earning = 0;
+    appointments.forEach((item) => {
       if (item.isCompleted || item.payment) {
-        earnning += item.amount;
+        earning += item.amount;
       }
     });
 
     let patients = [];
-    appointments.map((item) => {
+    appointments.forEach((item) => {
       if (!patients.includes(item.userId)) {
         patients.push(item.userId);
       }
     });
 
     const dashData = {
-      earnning,
+      earning,
       appointments: appointments.length,
       patients: patients.length,
       latestAppointments: appointments.reverse().slice(0, 5),
@@ -188,7 +154,6 @@ const doctorDashboard = async (req, res) => {
   }
 };
 
-// api to get doctor profile for doctor panal
 const DoctorProfile = async (req, res) => {
   try {
     const { docId } = req.body;
@@ -200,12 +165,11 @@ const DoctorProfile = async (req, res) => {
   }
 };
 
-//api to update doctor profile data from doctor penal
 const UpdateDoctorProfile = async (req, res) => {
   try {
     const { docId, fees, address, available } = req.body;
     await doctorModel.findByIdAndUpdate(docId, { fees, address, available });
-    res.json({ success: true, message: "profile Updated" });
+    res.json({ success: true, message: "Profile Updated" });
   } catch (error) {
     console.log(error);
     return res.json({ success: false, message: error.message });
@@ -221,5 +185,5 @@ export {
   CencelAppointment,
   doctorDashboard,
   DoctorProfile,
-  UpdateDoctorProfile
+  UpdateDoctorProfile,
 };

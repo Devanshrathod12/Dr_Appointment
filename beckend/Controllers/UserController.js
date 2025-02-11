@@ -10,38 +10,42 @@ import appointmentModel from "../Models/AppointmentModel.js";
 import razorpay from "razorpay";
 // import orders from "razorpay/dist/types/orders.js";
 
-// api to ragister users
-
 const RegisterUser = async (req, res) => {
   try {
-    // req from body
+    // Extract data from body
     const { name, email, password } = req.body;
-    // not null input
+
+    // Validate input fields
     if (!name || !email || !password) {
-      return res.json({ success: false, message: "Missing Detaild" });
+      return res.json({ success: false, message: "Missing Details" });
     }
-    // validation for valid email
+
+    // Validate email format
     if (!validator.isEmail(email)) {
-      return res.json({ success: false, message: "enter a valid Email" });
-    }
-    // paswword validation
-    if (password.lenght < 8) {
-      return res.json({ success: false, message: "enter a strong password" });
+      return res.json({ success: false, message: "Enter a valid Email" });
     }
 
-    // hasing password
-    const solt = await bcrypt.genSalt(10);
-    const heshedpassword = await bcrypt.hash(password, solt);
+    // Password validation
+    if (password.length < 8) {  // Fixed 'length' spelling mistake
+      return res.json({ success: false, message: "Enter a strong password" });
+    }
 
+    // Hashing password using crypto
+    const salt = crypto.randomBytes(16).toString("hex"); // Generate salt
+    const hashedPassword = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
+
+    // Creating user object
     const UserData = {
       name,
       email,
-      password: heshedpassword,
+      password: `${salt}:${hashedPassword}`, // Storing salt + hash together
     };
 
+    // Save user to DB
     let newUser = new UserModel(UserData);
     let User = await newUser.save();
 
+    // Generate JWT token
     const token = jwt.sign({ id: User._id }, process.env.JWT_SECRET);
 
     res.json({ success: true, token });
@@ -51,20 +55,26 @@ const RegisterUser = async (req, res) => {
   }
 };
 
-// api for user login
+// API for user login
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    // Find user by email
     const user = await UserModel.findOne({ email });
 
     if (!user) {
-      return res.json({ success: false, message: "user does not exist" });
+      return res.json({ success: false, message: "User does not exist" });
     }
 
-    const IsMatch = await bcrypt.compare(password, user.password);
+    // Extract stored hash & salt
+    const [salt, storedHash] = user.password.split(":");
 
-    if (IsMatch) {
+    // Hash the incoming password with the same salt
+    const hashedPassword = crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
+
+    // Compare hashed passwords
+    if (hashedPassword === storedHash) {
       const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
       res.json({ success: true, token });
     } else {
