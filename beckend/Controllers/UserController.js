@@ -7,6 +7,8 @@ import { v2 as cloudinary } from "cloudinary";
 import doctorModel from "../Models/DoctorsModel.js";
 import appointmentModel from "../Models/AppointmentModel.js";
 import razorpay from "razorpay";
+import crypto from "crypto";
+
 // import orders from "razorpay/dist/types/orders.js";
 
 const RegisterUser = async (req, res) => {
